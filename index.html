@@ -204,6 +204,10 @@
   .anexos-cell a{font-size:12px;font-weight:700;color:var(--accent);text-decoration:none;margin-right:8px;}
   .anexos-cell a:hover{text-decoration:underline;}
   .anexos-cell .none{color:var(--ink-mut);font-size:12px;}
+  #mainModal.readonly .attach-row input[type=file],
+  #mainModal.readonly .attach-remove,
+  #mainModal.readonly #btnSave{display:none !important;}
+  .field input:disabled,.field select:disabled,.field textarea:disabled{opacity:.75;cursor:default;}
   .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
 
   footer.foot{margin-top:26px;text-align:center;font-size:12px;color:var(--ink-mut);}
@@ -296,7 +300,7 @@
 </div>
 
 <div class="overlay" id="overlay">
-  <div class="modal">
+  <div class="modal" id="mainModal">
     <h2 id="modalTitle">Novo pagamento</h2>
     <form id="form">
       <div class="form-grid">
@@ -345,7 +349,7 @@
           <div class="attach-row">
             <input type="file" id="f_comprovante_file" accept="image/*,application/pdf">
             <a id="f_comprovante_link" href="#" target="_blank" rel="noopener" class="attach-link" style="display:none;">Ver arquivo atual</a>
-            <button type="button" class="btn small ghost" id="f_comprovante_remove" style="display:none;">Remover</button>
+            <button type="button" class="btn small ghost attach-remove" id="f_comprovante_remove" style="display:none;">Remover</button>
             <span id="f_comprovante_status" class="attach-status"></span>
           </div>
         </div>
@@ -354,7 +358,7 @@
           <div class="attach-row">
             <input type="file" id="f_recibo_file" accept="image/*,application/pdf">
             <a id="f_recibo_link" href="#" target="_blank" rel="noopener" class="attach-link" style="display:none;">Ver arquivo atual</a>
-            <button type="button" class="btn small ghost" id="f_recibo_remove" style="display:none;">Remover</button>
+            <button type="button" class="btn small ghost attach-remove" id="f_recibo_remove" style="display:none;">Remover</button>
             <span id="f_recibo_status" class="attach-status"></span>
           </div>
         </div>
@@ -501,6 +505,14 @@
       return r.json();
     });
   }
+  function fetchRole(){
+    return fetch('/api/whoami').then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function(data){
+      return data && data.role === 'admin' ? 'admin' : 'viewer';
+    }).catch(function(){ return 'viewer'; });
+  }
   function saveRemote(data){
     return fetch('/api/data', {
       method: 'POST',
@@ -532,10 +544,22 @@
     fornecedorFilter: "",
     sortKey: null,
     sortDir: 1,
-    editingId: null
+    editingId: null,
+    role: "viewer"
   };
 
+  function applyRoleUI(){
+    document.getElementById('btnNew').style.display = state.role === 'admin' ? '' : 'none';
+    document.body.classList.toggle('is-viewer', state.role !== 'admin');
+  }
+
   function boot(){
+    applyRoleUI();
+    fetchRole().then(function(role){
+      state.role = role;
+      applyRoleUI();
+      renderTable();
+    });
     var cached = loadLocalCache();
     if(cached && cached.length){ state.data = cached; render(); }
     setSyncStatus('syncing');
@@ -641,6 +665,7 @@
       return;
     }
     empty.style.display = "none";
+    var isAdmin = state.role === 'admin';
     tbody.innerHTML = rows.map(function(r){
       var meta = STATUS_META[r.status] || STATUS_META.wait_financeiro;
       var opts = Object.keys(STATUS_META).map(function(k){
@@ -649,9 +674,16 @@
       var obsFull = escapeHtml(r.obs || '');
       var anexosHtml = (r.comprovanteUrl ? '<a href="'+escapeHtml(r.comprovanteUrl)+'" target="_blank" rel="noopener">📎 Comprovante</a>' : '') +
         (r.reciboUrl ? '<a href="'+escapeHtml(r.reciboUrl)+'" target="_blank" rel="noopener">🧾 Recibo/NF</a>' : '');
+      var statusCell = isAdmin
+        ? '<select class="status-select '+meta.cls+'" data-action="status" data-id="'+r.id+'">'+opts+'</select>'
+        : '<span class="status-select '+meta.cls+'" style="display:inline-block;">'+escapeHtml(meta.label)+'</span>';
+      var actionsCell = isAdmin
+        ? '<button class="btn small ghost" data-action="edit" data-id="'+r.id+'">Editar</button> ' +
+          '<button class="btn small ghost danger" data-action="delete" data-id="'+r.id+'">Excluir</button>'
+        : '<button class="btn small ghost" data-action="view" data-id="'+r.id+'">Ver detalhes</button>';
       return (
         '<tr data-id="'+r.id+'">' +
-          '<td><select class="status-select '+meta.cls+'" data-action="status" data-id="'+r.id+'">'+opts+'</select></td>' +
+          '<td>'+statusCell+'</td>' +
           '<td class="proj"><div class="p-name">'+escapeHtml(r.projeto)+'</div></td>' +
           '<td class="fornecedor">'+escapeHtml(r.fornecedor || '—')+'</td>' +
           '<td class="muted">'+escapeHtml(r.dataServico || '—')+'</td>' +
@@ -661,10 +693,7 @@
           '<td class="muted">'+escapeHtml(r.dataEnvioFinanceiro || '—')+'</td>' +
           '<td class="obs-cell" title="'+obsFull+'">'+(obsFull || '—')+'</td>' +
           '<td class="anexos-cell">'+(anexosHtml || '<span class="none">—</span>')+'</td>' +
-          '<td class="actions">' +
-            '<button class="btn small ghost" data-action="edit" data-id="'+r.id+'">Editar</button> ' +
-            '<button class="btn small ghost danger" data-action="delete" data-id="'+r.id+'">Excluir</button>' +
-          '</td>' +
+          '<td class="actions">'+actionsCell+'</td>' +
         '</tr>'
       );
     }).join('');
@@ -728,7 +757,7 @@
   // ---- table row actions (delegated) ----
   document.getElementById('tbody').addEventListener('change', function(e){
     var el = e.target;
-    if(el.dataset.action === "status"){
+    if(el.dataset.action === "status" && state.role === 'admin'){
       var row = state.data.find(function(r){ return r.id === el.dataset.id; });
       if(row){ row.status = el.value; save(state.data); render(); }
     }
@@ -737,8 +766,8 @@
     var btn = e.target.closest('button[data-action]');
     if(!btn) return;
     var id = btn.dataset.id;
-    if(btn.dataset.action === "edit"){ openModal(id); }
-    if(btn.dataset.action === "delete"){
+    if(btn.dataset.action === "edit" || btn.dataset.action === "view"){ openModal(id); }
+    if(btn.dataset.action === "delete" && state.role === 'admin'){
       var row = state.data.find(function(r){ return r.id === id; });
       if(row){
         showConfirm('Excluir "'+row.projeto+'"?', function(){
@@ -773,7 +802,7 @@
   ATTACH_KINDS.forEach(function(kind){
     document.getElementById('f_' + kind + '_file').addEventListener('change', function(e){
       var file = e.target.files[0];
-      if(!file) return;
+      if(!file || state.role !== 'admin') return;
       var statusEl = document.getElementById('f_' + kind + '_status');
       var input = e.target;
       var previousUrl = modalAttachments[kind + "Url"];
@@ -793,7 +822,7 @@
     });
     document.getElementById('f_' + kind + '_remove').addEventListener('click', function(){
       var url = modalAttachments[kind + "Url"];
-      if(!url) return;
+      if(!url || state.role !== 'admin') return;
       modalAttachments[kind + "Url"] = "";
       updateAttachUI(kind);
       document.getElementById('f_' + kind + '_status').textContent = "";
@@ -801,11 +830,14 @@
     });
   });
 
+  var MODAL_FIELD_IDS = ["f_projeto","f_fornecedor","f_status","f_dataServico","f_valor","f_dataEmissao","f_formaPagamento","f_dataEnvioFinanceiro","f_obs"];
+
   function openModal(id){
+    var isAdmin = state.role === 'admin';
     state.editingId = id || null;
     var r = id ? state.data.find(function(x){ return x.id === id; }) : null;
     modalWorkingId = id || cid();
-    document.getElementById('modalTitle').textContent = r ? "Editar pagamento" : "Novo pagamento";
+    document.getElementById('modalTitle').textContent = !isAdmin ? "Detalhes do pagamento" : (r ? "Editar pagamento" : "Novo pagamento");
     document.getElementById('f_projeto').value = r ? r.projeto : "";
     document.getElementById('f_fornecedor').value = r ? r.fornecedor : "";
     document.getElementById('f_status').value = r ? r.status : "wait_financeiro";
@@ -815,7 +847,10 @@
     document.getElementById('f_formaPagamento').value = r ? r.formaPagamento : "";
     document.getElementById('f_dataEnvioFinanceiro').value = r ? r.dataEnvioFinanceiro : "";
     document.getElementById('f_obs').value = r ? r.obs : "";
-    document.getElementById('btnDeleteModal').style.display = r ? "" : "none";
+    document.getElementById('btnDeleteModal').style.display = (r && isAdmin) ? "" : "none";
+    document.getElementById('mainModal').classList.toggle('readonly', !isAdmin);
+    document.getElementById('btnCancel').textContent = isAdmin ? "Cancelar" : "Fechar";
+    MODAL_FIELD_IDS.forEach(function(fid){ document.getElementById(fid).disabled = !isAdmin; });
     modalAttachments.comprovanteUrl = r ? (r.comprovanteUrl || "") : "";
     modalAttachments.reciboUrl = r ? (r.reciboUrl || "") : "";
     ATTACH_KINDS.forEach(function(kind){
@@ -824,7 +859,7 @@
       updateAttachUI(kind);
     });
     overlay.classList.add('open');
-    document.getElementById('f_projeto').focus();
+    if(isAdmin) document.getElementById('f_projeto').focus();
   }
   function closeModal(){
     overlay.classList.remove('open');
@@ -835,6 +870,7 @@
   document.getElementById('btnNew').addEventListener('click', function(){ openModal(null); });
   document.getElementById('btnCancel').addEventListener('click', closeModal);
   document.getElementById('btnDeleteModal').addEventListener('click', function(){
+    if(state.role !== 'admin') return;
     var targetId = state.editingId;
     var row = state.data.find(function(r){ return r.id === targetId; });
     if(row){
@@ -851,6 +887,7 @@
 
   form.addEventListener('submit', function(e){
     e.preventDefault();
+    if(state.role !== 'admin') return;
     var valorRaw = document.getElementById('f_valor').value.trim();
     valorRaw = valorRaw.replace(/\./g,'').replace(',', '.');
     var valor = parseFloat(valorRaw);

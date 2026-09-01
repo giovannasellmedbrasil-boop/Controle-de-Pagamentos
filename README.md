@@ -19,15 +19,20 @@ O projeto está conectado ao repositório GitHub `Controle-de-Pagamentos` e impo
 
 ## Login e senha para acessar o app
 
-O site inteiro fica protegido por usuário e senha (o navegador mostra um popup de login nativo).
+O site inteiro fica protegido por usuário e senha (o navegador mostra um popup de login nativo). Existem dois perfis:
+
+- **Admin** (`BASIC_AUTH_USER` / `BASIC_AUTH_PASS`) — acesso completo: cria, edita, exclui e anexa comprovantes/NF.
+- **Viewer** (`VIEWER_USER` / `VIEWER_PASS`) — somente visualização: vê todas as informações e pode abrir/baixar os comprovantes e recibos/NF já anexados, mas não pode criar, editar, excluir nem enviar novos arquivos.
 
 1. No painel do Vercel, abra o projeto → **Settings → Environment Variables**.
-2. Adicione duas variáveis:
-   - `BASIC_AUTH_USER` — o usuário de acesso
-   - `BASIC_AUTH_PASS` — a senha de acesso
+2. Adicione as variáveis:
+   - `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` — login de administrador
+   - `VIEWER_USER` / `VIEWER_PASS` — login de visualização
 3. Salve e faça **Redeploy**.
 
-Se essas variáveis não estiverem configuradas, o site fica bloqueado (por segurança, ele não libera acesso sem login definido).
+Se `BASIC_AUTH_USER`/`BASIC_AUTH_PASS` não estiverem configuradas, o site fica bloqueado (por segurança, ele não libera acesso sem login definido). `VIEWER_USER`/`VIEWER_PASS` são opcionais — sem elas, só o login admin funciona.
+
+**Limite de segurança:** a restrição do perfil viewer é aplicada na interface e no servidor (a API de gravação recusa qualquer alteração vinda de um login viewer). O upload de novos anexos, porém, vai direto do navegador para o Supabase Storage — nesse ponto específico a restrição é só de interface, não impede alguém tecnicamente capaz de forçar um upload pelas ferramentas do navegador. Para o uso normal (equipe do financeiro só consultando), isso não é um problema.
 
 ## Como funciona por baixo dos panos
 

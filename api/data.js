@@ -40,6 +40,10 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === "POST") {
+      if (req.headers["x-app-role"] !== "admin") {
+        res.status(403).json({ error: "Este login tem acesso somente de visualização." });
+        return;
+      }
       const payload = req.body ?? [];
       const r = await fetch(`${url}/rest/v1/app_kv?on_conflict=key`, {
         method: "POST",
