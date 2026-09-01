@@ -1,29 +1,25 @@
 # Controle de Pagamentos — Sellmed Brasil
 
-App de controle de pagamentos com identidade visual da Sellmed, incluindo sincronização entre dispositivos via um banco de dados no próprio Vercel.
+App de controle de pagamentos com identidade visual da Sellmed, incluindo sincronização entre dispositivos via um banco de dados Postgres (Supabase) acessado por uma função serverless no Vercel.
 
-## Como publicar (Vercel Drop)
+## Publicação
 
-1. Acesse **vercel.com/drop**.
-2. Faça login (crie uma conta grátis se ainda não tiver).
-3. Arraste esta pasta inteira ("Controle de Pagamentos - App", com o `index.html` e a pasta `api`) para a página.
-4. Escolha o time/conta e um nome de projeto, ex: `controle-pagamentos-sellmed`.
-5. Clique em **Deploy**. Você recebe um link público fixo.
+O projeto está conectado ao repositório GitHub `Controle-de-Pagamentos` e importado no Vercel — todo `git push` para a branch `main` publica uma nova versão automaticamente.
 
-Nesse primeiro deploy, o app já funciona — mas ainda **sem sincronizar entre aparelhos** (ele cai automaticamente em modo local, mostrando "Modo offline" no canto do cabeçalho). Para sincronizar de verdade, siga o passo abaixo.
+## Como ativar/reativar a sincronização entre dispositivos
 
-## Como ativar a sincronização entre dispositivos
+1. No painel do Vercel, abra o projeto.
+2. Vá em **Settings → Environment Variables**.
+3. Adicione uma variável chamada `DATABASE_URL`, com o valor sendo a connection string do banco Postgres do Supabase (Supabase → seu projeto → Settings → Database → Connection string).
+4. Salve, volte em **Deployments**, e clique em **Redeploy** no último deploy (para carregar a nova variável).
+5. Abra o link do app em qualquer aparelho: o indicador no cabeçalho deve mostrar **"Sincronizado"**, e os lançamentos passam a ser os mesmos em todos os dispositivos.
 
-1. No painel do Vercel, abra o projeto que você acabou de criar.
-2. Vá na aba **Storage**.
-3. Clique em **Create Database** (ou "Marketplace Database Integrations") e escolha um banco **Redis** (ex: fornecido pela **Upstash** — tem plano gratuito).
-4. Conecte esse banco ao projeto quando for perguntado (ele adiciona automaticamente as variáveis `KV_REST_API_URL` e `KV_REST_API_TOKEN` ao projeto).
-5. Volte para a aba **Deployments** e clique em **Redeploy** no último deploy (para o projeto carregar as novas variáveis).
-6. Pronto — abra o link do app em qualquer aparelho: o indicador no cabeçalho deve mostrar **"Sincronizado"**, e os lançamentos passam a ser os mesmos em todos os dispositivos.
+**Importante:** a connection string do Supabase contém a senha do banco — nunca cole ela em nenhum arquivo do projeto/repositório (ele é público). Ela deve ficar só na aba de Environment Variables do Vercel, que é criptografada e não vai para o GitHub.
 
 ## Como funciona por baixo dos panos
 
 - `index.html` — o app (interface, tabela, formulário).
-- `api/data.js` — uma função no próprio Vercel que lê/grava os pagamentos no banco Redis (GET devolve a lista, POST substitui a lista).
+- `api/data.js` — função serverless que lê/grava os pagamentos na tabela `app_kv` do Postgres (GET devolve a lista, POST substitui a lista).
+- `package.json` — declara a dependência `pg` (driver Postgres), instalada automaticamente pelo Vercel a cada deploy.
 - Cada navegador também guarda uma cópia local (cache) dos dados, então o app continua funcionando mesmo se a internet cair — ele volta a sincronizar assim que a conexão retornar.
 - Não há edição simultânea "ao vivo" (tipo Google Docs): quem salvar por último sobrescreve os dados. Para o uso normal (uma pessoa por vez editando pagamentos), isso não costuma ser um problema.

@@ -2,47 +2,55 @@
 // GET  -> devolve a lista de pagamentos salva no banco (array JSON).
 // POST -> substitui a lista salva pelo corpo da requisição (array JSON).
 //
-// Usa um banco KV via REST (Upstash Redis, adicionado pelo painel do Vercel
-// em Storage/Marketplace). As variáveis KV_REST_API_URL e KV_REST_API_TOKEN
-// são injetadas automaticamente pelo Vercel quando o banco é conectado ao
-// projeto — não é preciso configurar nada aqui.
+// Usa um banco Postgres (Supabase). A variável de ambiente DATABASE_URL
+// (a connection string do Supabase) precisa estar configurada no projeto
+// Vercel em Settings > Environment Variables.
+
+const { Pool } = require("pg");
 
 const KEY = "sellmed_controle_pagamentos";
 
-export default async function handler(req, res) {
-  const url = process.env.KV_REST_API_URL;
-  const token = process.env.KV_REST_API_TOKEN;
+let pool;
+function getPool() {
+  if (!pool) {
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 1
+    });
+  }
+  return pool;
+}
 
-  if (!url || !token) {
+module.exports = async function handler(req, res) {
+  if (!process.env.DATABASE_URL) {
     res.status(500).json({
-      error: "Banco de dados não configurado neste projeto Vercel. Adicione um banco KV (Storage > Marketplace > Redis/Upstash) e faça o redeploy."
+      error: "Banco de dados não configurado neste projeto Vercel. Adicione a variável DATABASE_URL (Settings > Environment Variables) e faça o redeploy."
     });
     return;
   }
 
   try {
+    const db = getPool();
+
     if (req.method === "GET") {
-      const r = await fetch(`${url}/get/${KEY}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!r.ok) throw new Error(`KV respondeu ${r.status}`);
-      const body = await r.json();
-      let value = [];
-      if (body && typeof body.result === "string") {
-        try { value = JSON.parse(body.result); } catch (e) { value = []; }
-      }
+      const r = await db.query(
+        "select value from app_kv where key = $1",
+        [KEY]
+      );
+      const value = r.rows.length ? r.rows[0].value : [];
       res.status(200).json(value);
       return;
     }
 
     if (req.method === "POST") {
-      const payload = JSON.stringify(req.body ?? []);
-      const r = await fetch(`${url}/set/${KEY}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/plain" },
-        body: payload
-      });
-      if (!r.ok) throw new Error(`KV respondeu ${r.status}`);
+      const payload = req.body ?? [];
+      await db.query(
+        `insert into app_kv (key, value, updated_at)
+         values ($1, $2::jsonb, now())
+         on conflict (key) do update set value = excluded.value, updated_at = now()`,
+        [KEY, JSON.stringify(payload)]
+      );
       res.status(200).json({ ok: true });
       return;
     }
@@ -51,4 +59,4 @@ export default async function handler(req, res) {
   } catch (err) {
     res.status(502).json({ error: "Falha ao acessar o banco de dados: " + err.message });
   }
-}
+};
