@@ -1,4 +1,7 @@
 {
   "name": "controle-de-pagamentos-sellmed",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@vercel/functions": "^3.9.5"
+  }
 }
