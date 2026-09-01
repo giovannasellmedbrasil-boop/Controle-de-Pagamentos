@@ -9,7 +9,7 @@
 
 const KEY = "sellmed_controle_pagamentos";
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   const url = process.env.SUPABASE_URL;
   const anonKey = process.env.SUPABASE_ANON_KEY;
 
@@ -59,4 +59,4 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     res.status(502).json({ error: "Falha ao acessar o banco de dados: " + err.message });
   }
-};
+}

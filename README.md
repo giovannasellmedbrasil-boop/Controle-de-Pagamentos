@@ -36,7 +36,7 @@ Se `BASIC_AUTH_USER`/`BASIC_AUTH_PASS` não estiverem configuradas, o site fica 
 
 ## Como funciona por baixo dos panos
 
-- `middleware.mjs` — roda antes de qualquer requisição e exige usuário/senha (HTTP Basic Auth) via `BASIC_AUTH_USER` / `BASIC_AUTH_PASS`.
+- `middleware.js` — roda antes de qualquer requisição e exige usuário/senha (HTTP Basic Auth) via `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` (admin) e `VIEWER_USER` / `VIEWER_PASS` (visualização).
 - `index.html` — o app (interface, tabela, formulário).
 - `api/data.js` — função serverless que lê/grava os pagamentos na tabela `app_kv` do Supabase via API REST (PostgREST) — GET devolve a lista, POST substitui a lista.
 - A tabela `app_kv` tem Row Level Security ativado, com uma política liberando leitura/escrita para a chave `anon`.
