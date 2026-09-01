@@ -144,7 +144,7 @@
 
   /* ---------- table ---------- */
   .table-scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
-  table{width:100%;border-collapse:collapse;min-width:1220px;}
+  table{width:100%;border-collapse:collapse;min-width:1400px;}
   thead th{
     position:sticky;top:0;background:var(--surface-2);
     text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;
@@ -195,6 +195,15 @@
     background:var(--surface-2);color:var(--ink);font:inherit;
   }
   .field textarea{resize:vertical;min-height:70px;}
+  .attach-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .attach-row input[type=file]{flex:1;min-width:180px;font-size:12.5px;color:var(--ink-soft);}
+  .attach-link{font-size:12.5px;font-weight:700;color:var(--accent);text-decoration:none;white-space:nowrap;}
+  .attach-link:hover{text-decoration:underline;}
+  .attach-status{font-size:12px;color:var(--ink-mut);}
+  .anexos-cell{white-space:nowrap;}
+  .anexos-cell a{font-size:12px;font-weight:700;color:var(--accent);text-decoration:none;margin-right:8px;}
+  .anexos-cell a:hover{text-decoration:underline;}
+  .anexos-cell .none{color:var(--ink-mut);font-size:12px;}
   .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
 
   footer.foot{margin-top:26px;text-align:center;font-size:12px;color:var(--ink-mut);}
@@ -274,6 +283,7 @@
           <th data-key="dataEmissao">Data de emissão da NF/Recibo</th>
           <th data-key="dataEnvioFinanceiro">Data de envio ao financeiro</th>
           <th data-key="obs">Observações</th>
+          <th>Anexos</th>
           <th></th>
         </tr>
       </thead>
@@ -330,6 +340,24 @@
           <label>Observações</label>
           <textarea id="f_obs" placeholder="campo livre"></textarea>
         </div>
+        <div class="field full attach-field">
+          <label>Comprovante de pagamento</label>
+          <div class="attach-row">
+            <input type="file" id="f_comprovante_file" accept="image/*,application/pdf">
+            <a id="f_comprovante_link" href="#" target="_blank" rel="noopener" class="attach-link" style="display:none;">Ver arquivo atual</a>
+            <button type="button" class="btn small ghost" id="f_comprovante_remove" style="display:none;">Remover</button>
+            <span id="f_comprovante_status" class="attach-status"></span>
+          </div>
+        </div>
+        <div class="field full attach-field">
+          <label>Recibo / NF</label>
+          <div class="attach-row">
+            <input type="file" id="f_recibo_file" accept="image/*,application/pdf">
+            <a id="f_recibo_link" href="#" target="_blank" rel="noopener" class="attach-link" style="display:none;">Ver arquivo atual</a>
+            <button type="button" class="btn small ghost" id="f_recibo_remove" style="display:none;">Remover</button>
+            <span id="f_recibo_status" class="attach-status"></span>
+          </div>
+        </div>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn danger" id="btnDeleteModal" style="margin-right:auto;display:none;">Excluir lançamento</button>
@@ -359,6 +387,44 @@
   document.getElementById('logoImg').src = LOGO_SRC;
 
   var STORE_KEY = "sellmed_controle_pagamentos_v3";
+
+  // Upload de anexos direto pro Storage do Supabase (chave "anon" — pública por
+  // desenho, protegida por policy no bucket "anexos"; não é segredo).
+  var SUPABASE_URL = "https://xfpsuudoikdtjsroyugf.supabase.co";
+  var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmcHN1dWRvaWtkdGpzcm95dWdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyODcxNDYsImV4cCI6MjEwMzg2MzE0Nn0.FbDNSPvwnUTi-b1E-F4OTW92vReILNfK8wouSHsfbtM";
+  var ANEXOS_BUCKET = "anexos";
+
+  function sanitizeFileName(name){
+    return String(name || "arquivo").normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9._-]/g, "_");
+  }
+
+  function uploadAnexo(paymentId, kind, file){
+    var path = paymentId + "/" + kind + "-" + Date.now() + "-" + sanitizeFileName(file.name);
+    var uploadUrl = SUPABASE_URL + "/storage/v1/object/" + ANEXOS_BUCKET + "/" + path;
+    return fetch(uploadUrl, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        "Content-Type": file.type || "application/octet-stream"
+      },
+      body: file
+    }).then(function(r){
+      if(!r.ok) return r.text().then(function(t){ throw new Error("Falha no upload (" + r.status + ") " + t); });
+      return SUPABASE_URL + "/storage/v1/object/public/" + ANEXOS_BUCKET + "/" + path;
+    });
+  }
+
+  function removeAnexoRemoto(publicUrl){
+    var marker = "/object/public/" + ANEXOS_BUCKET + "/";
+    var idx = publicUrl.indexOf(marker);
+    if(idx === -1) return Promise.resolve();
+    var path = publicUrl.slice(idx + marker.length);
+    return fetch(SUPABASE_URL + "/storage/v1/object/" + ANEXOS_BUCKET + "/" + path, {
+      method: "DELETE",
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY }
+    }).catch(function(){});
+  }
 
   var STATUS_META = {
     ok:             { label:"Realizado",                                cls:"st-ok"     },
@@ -581,6 +647,8 @@
         return '<option value="'+k+'"'+(k===r.status?' selected':'')+'>'+STATUS_META[k].label+'</option>';
       }).join('');
       var obsFull = escapeHtml(r.obs || '');
+      var anexosHtml = (r.comprovanteUrl ? '<a href="'+escapeHtml(r.comprovanteUrl)+'" target="_blank" rel="noopener">📎 Comprovante</a>' : '') +
+        (r.reciboUrl ? '<a href="'+escapeHtml(r.reciboUrl)+'" target="_blank" rel="noopener">🧾 Recibo/NF</a>' : '');
       return (
         '<tr data-id="'+r.id+'">' +
           '<td><select class="status-select '+meta.cls+'" data-action="status" data-id="'+r.id+'">'+opts+'</select></td>' +
@@ -592,6 +660,7 @@
           '<td class="muted">'+escapeHtml(r.dataEmissao || '—')+'</td>' +
           '<td class="muted">'+escapeHtml(r.dataEnvioFinanceiro || '—')+'</td>' +
           '<td class="obs-cell" title="'+obsFull+'">'+(obsFull || '—')+'</td>' +
+          '<td class="anexos-cell">'+(anexosHtml || '<span class="none">—</span>')+'</td>' +
           '<td class="actions">' +
             '<button class="btn small ghost" data-action="edit" data-id="'+r.id+'">Editar</button> ' +
             '<button class="btn small ghost danger" data-action="delete" data-id="'+r.id+'">Excluir</button>' +
@@ -683,10 +752,59 @@
   // ---- modal ----
   var overlay = document.getElementById('overlay');
   var form = document.getElementById('form');
+  var modalWorkingId = null;
+  var modalAttachments = { comprovanteUrl: "", reciboUrl: "" };
+  var ATTACH_KINDS = ["comprovante", "recibo"];
+
+  function updateAttachUI(kind){
+    var url = modalAttachments[kind + "Url"];
+    var link = document.getElementById('f_' + kind + '_link');
+    var removeBtn = document.getElementById('f_' + kind + '_remove');
+    if(url){
+      link.href = url;
+      link.style.display = "";
+      removeBtn.style.display = "";
+    } else {
+      link.style.display = "none";
+      removeBtn.style.display = "none";
+    }
+  }
+
+  ATTACH_KINDS.forEach(function(kind){
+    document.getElementById('f_' + kind + '_file').addEventListener('change', function(e){
+      var file = e.target.files[0];
+      if(!file) return;
+      var statusEl = document.getElementById('f_' + kind + '_status');
+      var input = e.target;
+      var previousUrl = modalAttachments[kind + "Url"];
+      input.disabled = true;
+      statusEl.textContent = "Enviando…";
+      uploadAnexo(modalWorkingId, kind, file).then(function(url){
+        modalAttachments[kind + "Url"] = url;
+        updateAttachUI(kind);
+        statusEl.textContent = "Enviado ✓";
+        if(previousUrl) removeAnexoRemoto(previousUrl);
+      }).catch(function(err){
+        statusEl.textContent = "Erro ao enviar: " + err.message;
+      }).finally(function(){
+        input.disabled = false;
+        input.value = "";
+      });
+    });
+    document.getElementById('f_' + kind + '_remove').addEventListener('click', function(){
+      var url = modalAttachments[kind + "Url"];
+      if(!url) return;
+      modalAttachments[kind + "Url"] = "";
+      updateAttachUI(kind);
+      document.getElementById('f_' + kind + '_status').textContent = "";
+      removeAnexoRemoto(url);
+    });
+  });
 
   function openModal(id){
     state.editingId = id || null;
     var r = id ? state.data.find(function(x){ return x.id === id; }) : null;
+    modalWorkingId = id || cid();
     document.getElementById('modalTitle').textContent = r ? "Editar pagamento" : "Novo pagamento";
     document.getElementById('f_projeto').value = r ? r.projeto : "";
     document.getElementById('f_fornecedor').value = r ? r.fornecedor : "";
@@ -698,12 +816,20 @@
     document.getElementById('f_dataEnvioFinanceiro').value = r ? r.dataEnvioFinanceiro : "";
     document.getElementById('f_obs').value = r ? r.obs : "";
     document.getElementById('btnDeleteModal').style.display = r ? "" : "none";
+    modalAttachments.comprovanteUrl = r ? (r.comprovanteUrl || "") : "";
+    modalAttachments.reciboUrl = r ? (r.reciboUrl || "") : "";
+    ATTACH_KINDS.forEach(function(kind){
+      document.getElementById('f_' + kind + '_file').value = "";
+      document.getElementById('f_' + kind + '_status').textContent = "";
+      updateAttachUI(kind);
+    });
     overlay.classList.add('open');
     document.getElementById('f_projeto').focus();
   }
   function closeModal(){
     overlay.classList.remove('open');
     state.editingId = null;
+    modalWorkingId = null;
     form.reset();
   }
   document.getElementById('btnNew').addEventListener('click', function(){ openModal(null); });
@@ -739,7 +865,9 @@
       dataEmissao: document.getElementById('f_dataEmissao').value.trim(),
       formaPagamento: document.getElementById('f_formaPagamento').value.trim(),
       dataEnvioFinanceiro: document.getElementById('f_dataEnvioFinanceiro').value.trim(),
-      obs: document.getElementById('f_obs').value.trim()
+      obs: document.getElementById('f_obs').value.trim(),
+      comprovanteUrl: modalAttachments.comprovanteUrl,
+      reciboUrl: modalAttachments.reciboUrl
     };
 
     if(!payload.projeto){ document.getElementById('f_projeto').focus(); return; }
@@ -748,7 +876,7 @@
       var idx = state.data.findIndex(function(r){ return r.id === state.editingId; });
       if(idx > -1) state.data[idx] = Object.assign({}, state.data[idx], payload);
     } else {
-      payload.id = cid();
+      payload.id = modalWorkingId || cid();
       state.data.unshift(payload);
     }
     save(state.data);
