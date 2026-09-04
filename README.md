@@ -19,24 +19,29 @@ O projeto está conectado ao repositório GitHub `Controle-de-Pagamentos` e impo
 
 ## Login e senha para acessar o app
 
-O site inteiro fica protegido por usuário e senha (o navegador mostra um popup de login nativo). Existem dois perfis:
+O site inteiro fica protegido por uma tela de login própria (não é o popup nativo do navegador — é uma página com a cara do app). Existem dois perfis:
 
-- **Admin** (`BASIC_AUTH_USER` / `BASIC_AUTH_PASS`) — acesso completo: cria, edita, exclui e anexa comprovantes/NF.
-- **Viewer** (`VIEWER_USER` / `VIEWER_PASS`) — somente visualização: vê todas as informações e pode abrir/baixar os comprovantes e recibos/NF já anexados, mas não pode criar, editar, excluir nem enviar novos arquivos.
+- **Admin** (`BASIC_AUTH_USER` / `BASIC_AUTH_PASS`) — acesso completo: cria, edita, exclui e anexa comprovantes/NF/contrato.
+- **Viewer** (`VIEWER_USER` / `VIEWER_PASS`) — somente visualização: vê todas as informações e pode abrir/baixar os anexos já enviados, mas não pode criar, editar, excluir nem enviar novos arquivos.
 
 1. No painel do Vercel, abra o projeto → **Settings → Environment Variables**.
 2. Adicione as variáveis:
    - `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` — login de administrador
-   - `VIEWER_USER` / `VIEWER_PASS` — login de visualização
+   - `VIEWER_USER` / `VIEWER_PASS` — login de visualização (opcional)
+   - `SESSION_SECRET` — qualquer texto longo e aleatório (ex: gere em https://1password.com/password-generator ou digite 40+ caracteres aleatórios). Usado só para assinar a sessão de quem já logou — não é uma senha que ninguém digita.
 3. Salve e faça **Redeploy**.
 
-Se `BASIC_AUTH_USER`/`BASIC_AUTH_PASS` não estiverem configuradas, o site fica bloqueado (por segurança, ele não libera acesso sem login definido). `VIEWER_USER`/`VIEWER_PASS` são opcionais — sem elas, só o login admin funciona.
+Sem `BASIC_AUTH_USER`/`BASIC_AUTH_PASS`/`SESSION_SECRET` configuradas, o site fica bloqueado (por segurança, ele não libera acesso sem login definido). `VIEWER_USER`/`VIEWER_PASS` são opcionais — sem elas, só o login admin funciona.
+
+Depois de entrar, a sessão fica salva por 7 dias (cookie assinado, não é possível forjar trocando o cookie manualmente). Um botão **"Sair"** no canto superior direito encerra a sessão a qualquer momento.
 
 **Limite de segurança:** a restrição do perfil viewer é aplicada na interface e no servidor (a API de gravação recusa qualquer alteração vinda de um login viewer). O upload de novos anexos, porém, vai direto do navegador para o Supabase Storage — nesse ponto específico a restrição é só de interface, não impede alguém tecnicamente capaz de forçar um upload pelas ferramentas do navegador. Para o uso normal (equipe do financeiro só consultando), isso não é um problema.
 
 ## Como funciona por baixo dos panos
 
-- `middleware.js` — roda antes de qualquer requisição e exige usuário/senha (HTTP Basic Auth) via `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` (admin) e `VIEWER_USER` / `VIEWER_PASS` (visualização).
+- `middleware.js` — roda antes de qualquer requisição; sem sessão válida, serve a tela de login (ou 401 para chamadas de api).
+- `api/login.js` / `api/logout.js` — verificam usuário/senha e emitem/removem o cookie de sessão assinado.
+- `lib/session.js` — cria e verifica o cookie de sessão (HMAC-SHA256 com `SESSION_SECRET`).
 - `index.html` — o app (interface, tabela, formulário).
 - `api/data.js` — função serverless que lê/grava os pagamentos na tabela `app_kv` do Supabase via API REST (PostgREST) — GET devolve a lista, POST substitui a lista.
 - A tabela `app_kv` tem Row Level Security ativado, com uma política liberando leitura/escrita para a chave `anon`.

@@ -91,6 +91,8 @@
   .sync-status.sync-syncing{background:rgba(255,255,255,.15);color:#eef1fb;}
   .sync-status.sync-error{background:rgba(224,90,74,.22);color:#ff9a8a;}
   .sync-status.sync-offline{background:rgba(226,149,43,.22);color:#f2b25a;}
+  .logout-link{background:transparent;border:1px solid rgba(255,255,255,.35);color:#eef1fb;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;cursor:pointer;}
+  .logout-link:hover{background:rgba(255,255,255,.12);}
 
   /* ---------- summary cards ---------- */
   .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
@@ -233,6 +235,7 @@
     <div class="brandmark">
       Financeiro
       <div id="syncStatus" class="sync-status sync-syncing" title="">Sincronizando…</div>
+      <button type="button" id="btnLogout" class="logout-link">Sair</button>
     </div>
   </header>
 
@@ -934,6 +937,9 @@
   });
 
   document.getElementById('btnPrint').addEventListener('click', function(){ window.print(); });
+  document.getElementById('btnLogout').addEventListener('click', function(){
+    fetch('/api/logout', { method: 'POST' }).finally(function(){ window.location.reload(); });
+  });
 
   boot();
 })();
