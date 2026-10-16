@@ -129,6 +129,12 @@
     padding:9px 10px;border-radius:9px;border:1px solid var(--border);
     background:var(--surface-2);color:var(--ink);font:inherit;
   }
+  .fornecedor-total-badge{
+    display:flex;align-items:baseline;gap:7px;
+    padding:8px 14px;border-radius:9px;background:var(--ok-bg);color:var(--ok-fg);
+    font-size:12.5px;font-weight:700;white-space:nowrap;
+  }
+  .fornecedor-total-badge .amount{font-size:15px;font-variant-numeric:tabular-nums;}
   .chip-group{display:flex;gap:6px;flex-wrap:wrap;}
   .chip{
     padding:7px 12px;border-radius:999px;border:1px solid var(--border);
@@ -277,6 +283,7 @@
       <option value="wait_recibo">Aguardando NF/Recibo</option>
     </select>
     <select id="fornecedorFilter"><option value="">Todos os fornecedores</option></select>
+    <div id="fornecedorTotalBadge" class="fornecedor-total-badge" style="display:none;"></div>
     <div class="spacer"></div>
     <button class="btn ghost" id="btnClear">Limpar filtros</button>
     <button class="btn ghost" id="btnPrint">Imprimir</button>
@@ -673,6 +680,25 @@
     document.getElementById('cardOtherHint').textContent = reciboN + " lançamentos";
   }
 
+  function renderFornecedorTotal(){
+    var badge = document.getElementById('fornecedorTotalBadge');
+    var fornecedor = state.fornecedorFilter;
+    if(!fornecedor){
+      badge.style.display = "none";
+      return;
+    }
+    var pago = 0, pagoN = 0, total = 0;
+    state.data.forEach(function(r){
+      if((r.fornecedor || "") !== fornecedor) return;
+      var v = Number(r.valor) || 0;
+      total += v;
+      if(r.status === "ok"){ pago += v; pagoN++; }
+    });
+    badge.innerHTML = 'Pago a ' + escapeHtml(fornecedor) + ': <span class="amount">' + fmtBRL(pago) + '</span>' +
+      (total !== pago ? ' <span style="opacity:.75;font-weight:600;">(total geral: ' + fmtBRL(total) + ')</span>' : '');
+    badge.style.display = "flex";
+  }
+
   function renderTable(){
     var rows = filteredSorted();
     var tbody = document.getElementById('tbody');
@@ -722,6 +748,7 @@
     renderStatusFilter();
     renderFornecedorOptions();
     renderCards();
+    renderFornecedorTotal();
     renderTable();
     document.querySelectorAll('thead th[data-key]').forEach(function(th){
       th.classList.toggle('sorted', th.dataset.key === state.sortKey);
@@ -754,7 +781,7 @@
     state.search = e.target.value; renderTable();
   });
   document.getElementById('fornecedorFilter').addEventListener('change', function(e){
-    state.fornecedorFilter = e.target.value; renderTable(); renderCards();
+    state.fornecedorFilter = e.target.value; renderTable(); renderCards(); renderFornecedorTotal();
   });
   document.getElementById('statusFilter').addEventListener('change', function(e){
     state.statusFilter = e.target.value; renderTable(); renderCards();
