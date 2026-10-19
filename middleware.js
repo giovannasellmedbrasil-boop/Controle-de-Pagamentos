@@ -103,6 +103,12 @@ export default async function middleware(request) {
     return next();
   }
 
+  // iOS/Android buscam o icone de "adicionar a tela de inicio" sem enviar o
+  // cookie de sessao — libera esse arquivo (so uma imagem, sem dado sensivel).
+  if (url.pathname === "/apple-touch-icon.png" || url.pathname === "/favicon.ico") {
+    return next();
+  }
+
   const token = getCookie(request.headers.get("cookie"), SESSION_COOKIE_NAME);
   const role = await verifySessionToken(sessionSecret, token);
 
