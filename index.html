@@ -101,7 +101,7 @@
   .logout-link:hover{background:rgba(255,255,255,.12);}
 
   /* ---------- summary cards ---------- */
-  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px;}
   @media (max-width:900px){.cards{grid-template-columns:repeat(2,1fr);}}
   .card{
     background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
@@ -112,6 +112,8 @@
   .card .value{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink);}
   .card.ok .value{color:var(--ok-fg);}
   .card.wait .value{color:var(--wait-fg);}
+  .card.year{border-color:var(--accent);background:linear-gradient(170deg,var(--surface) 70%,var(--info-bg));}
+  .card.year .value{color:var(--navy-700);}
   .card .hint{font-size:12px;color:var(--ink-mut);}
 
   /* ---------- toolbar ---------- */
@@ -272,6 +274,16 @@
       <div class="value" id="cardOther">—</div>
       <div class="hint" id="cardOtherHint">—</div>
     </div>
+    <div class="card year">
+      <div class="label">Pagamentos 2026</div>
+      <div class="value" id="card2026">—</div>
+      <div class="hint" id="card2026Hint">—</div>
+    </div>
+    <div class="card year">
+      <div class="label">Pagamentos 2027</div>
+      <div class="value" id="card2027">—</div>
+      <div class="hint" id="card2027Hint">—</div>
+    </div>
   </section>
 
   <div class="toolbar">
@@ -355,6 +367,10 @@
         <div class="field">
           <label>Data de envio pro financeiro</label>
           <input type="text" id="f_dataEnvioFinanceiro" placeholder="dd/mm/aaaa">
+        </div>
+        <div class="field">
+          <label>Ano de referência</label>
+          <input type="text" id="f_ano" placeholder="2026" inputmode="numeric" maxlength="4">
         </div>
         <div class="field full">
           <label>Observações</label>
@@ -624,6 +640,16 @@
     });
   }
 
+  // Ano de referencia do pagamento: usa o campo explicito (r.ano) quando
+  // definido; senao tenta achar um ano de 4 digitos no projeto/datas; na
+  // falta de qualquer pista, assume 2026 (ano corrente das operacoes).
+  function getAno(r){
+    if(r.ano) return String(r.ano);
+    var text = [r.projeto, r.dataServico, r.dataEmissao, r.dataEnvioFinanceiro].join(' ');
+    var m = text.match(/20\d{2}/);
+    return m ? m[0] : '2026';
+  }
+
   function renderStatusFilter(){
     var sel = document.getElementById('statusFilter');
     if(sel.value !== state.statusFilter) sel.value = state.statusFilter;
@@ -663,12 +689,16 @@
 
   function renderCards(){
     var total = 0, ok = 0, wait = 0, recibo = 0, okN=0, waitN=0, reciboN=0;
+    var ano2026 = 0, ano2026N = 0, ano2027 = 0, ano2027N = 0;
     state.data.forEach(function(r){
       var v = Number(r.valor)||0;
       total += v;
       if(r.status === "ok"){ ok += v; okN++; }
       else if(r.status === "wait_financeiro"){ wait += v; waitN++; }
       else if(r.status === "wait_recibo"){ recibo += v; reciboN++; }
+      var ano = getAno(r);
+      if(ano === "2026"){ ano2026 += v; ano2026N++; }
+      else if(ano === "2027"){ ano2027 += v; ano2027N++; }
     });
     document.getElementById('cardTotal').textContent = fmtBRL(total);
     document.getElementById('cardTotalHint').textContent = state.data.length + " lançamentos";
@@ -678,6 +708,10 @@
     document.getElementById('cardWaitHint').textContent = waitN + " lançamentos";
     document.getElementById('cardOther').textContent = fmtBRL(recibo);
     document.getElementById('cardOtherHint').textContent = reciboN + " lançamentos";
+    document.getElementById('card2026').textContent = fmtBRL(ano2026);
+    document.getElementById('card2026Hint').textContent = ano2026N + " lançamentos";
+    document.getElementById('card2027').textContent = fmtBRL(ano2027);
+    document.getElementById('card2027Hint').textContent = ano2027N + " lançamentos";
   }
 
   function renderFornecedorTotal(){
@@ -876,7 +910,7 @@
     });
   });
 
-  var MODAL_FIELD_IDS = ["f_projeto","f_fornecedor","f_status","f_dataServico","f_valor","f_dataEmissao","f_formaPagamento","f_dataEnvioFinanceiro","f_obs"];
+  var MODAL_FIELD_IDS = ["f_projeto","f_fornecedor","f_status","f_dataServico","f_valor","f_dataEmissao","f_formaPagamento","f_dataEnvioFinanceiro","f_ano","f_obs"];
 
   function openModal(id){
     var isAdmin = state.role === 'admin';
@@ -892,6 +926,7 @@
     document.getElementById('f_dataEmissao').value = r ? r.dataEmissao : "";
     document.getElementById('f_formaPagamento').value = r ? r.formaPagamento : "";
     document.getElementById('f_dataEnvioFinanceiro').value = r ? r.dataEnvioFinanceiro : "";
+    document.getElementById('f_ano').value = getAno(r || {});
     document.getElementById('f_obs').value = r ? r.obs : "";
     document.getElementById('btnDeleteModal').style.display = (r && isAdmin) ? "" : "none";
     document.getElementById('mainModal').classList.toggle('readonly', !isAdmin);
@@ -949,6 +984,7 @@
       dataEmissao: document.getElementById('f_dataEmissao').value.trim(),
       formaPagamento: document.getElementById('f_formaPagamento').value.trim(),
       dataEnvioFinanceiro: document.getElementById('f_dataEnvioFinanceiro').value.trim(),
+      ano: document.getElementById('f_ano').value.trim(),
       obs: document.getElementById('f_obs').value.trim(),
       comprovanteUrl: modalAttachments.comprovanteUrl,
       reciboUrl: modalAttachments.reciboUrl,
